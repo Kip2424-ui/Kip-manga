@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>مترجم المانجا الكامل</title>
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: #f5f5f5;
+      text-align: center;
+      padding: 20px;
+    }
+    #canvas {
+      border: 2px solid #333;
+      background: white;
+      margin-top: 10px;
+      cursor: crosshair;
+    }
+    .controls {
+      margin-bottom: 10px;
+    }
+    .controls label {
+      margin: 0 8px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    textarea {
+      position: absolute;
+      border: 1px solid #000;
+      background: rgba(255,255,255,0.95);
+      font-size: 24px;
+      resize: none;
+      padding: 5px;
+      line-height: 1.4;
+    }
+    button {
+      margin: 5px;
+      padding: 10px 15px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>مترجم المانجا الكامل</h2>
+
+  <div class="controls">
+    <label>الخط:
+      <select id="fontFamily">
+        <option value="Arial">Arial</option>
+        <option value="'Cairo', sans-serif">Cairo</option>
+        <option value="'Tajawal', sans-serif">Tajawal</option>
+        <option value="'Kalam', cursive">Kalam</option>
+        <option value="'Comic Neue', cursive">Comic Neue</option>
+      </select>
+    </label>
+
+    <label>الحجم:
+      <input type="range" id="fontSize" min="14" max="50" value="24">
+      <span id="sizeLabel">24</span>
+    </label>
+
+    <label>اللون:
+      <input type="color" id="textColor" value="#000000">
+    </label>
+
+    <label>
+      <input type="checkbox" id="whiteOut" checked> تبييد خلفية
+    </label>
+  </div>
+
+  <input type="file" id="upload" accept="image/*">
+  <br>
+  <canvas id="canvas"></canvas>
+  <br>
+
+  <button onclick="saveProject()">💾 حفظ المشروع</button>
+  <button onclick="document.getElementById('loadProject').click()">📂 تحميل المشروع</button>
+  <input type="file" id="loadProject" accept=".json" style="display:none;" onchange="loadProject(event)">
+  <button onclick="exportImage()">📥 تصدير الصورة النهائية</button>
+
+  <!-- خطوط Google -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Tajawal:wght@400;700&family=Kalam:wght@400;700&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let img = new Image();
+    let texts = []; // {text, x, y, font, size, color, whiteOut}
+
+    // رفع الصورة
+    document.getElementById('upload').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        img.onload = function () {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          redrawAll();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // إعادة رسم كل شيء
+    function redrawAll() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (img.src) ctx.drawImage(img, 0, 0);
+      texts.forEach(t => drawTextObj(t));
+    }
+
+    // رسم نص واحد
+    function drawTextObj(t) {
+      ctx.font = `${t.size}px ${t.font}`;
+      const metrics = ctx.measureText(t.text);
+      const textHeight = t.size + 8;
+
+      if (t.whiteOut) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(t.x - 5, t.y - textHeight, metrics.width + 10, textHeight + 5);
+      }
+
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, t.x, t.y);
+    }
+
+    // إضافة نص جديد
+    canvas.addEventListener('dblclick', function (e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const textarea = document.createElement('textarea');
+      textarea.style.left = e.clientX + 'px';
+      textarea.style.top = e.clientY + 'px';
+      textarea.rows = 2;
+      textarea.cols = 25;
+      textarea.style.fontFamily = document.getElementById('fontFamily').value;
+      textarea.style.fontSize = document.getElementById('fontSize').value + 'px';
+      textarea.style.color = document.getElementById('textColor').value;
+
+      textarea.addEventListener('blur', function () {
+        const text = textarea.value.trim();
+        if (text) {
+          const obj = {
+            text: text,
+            x: x,
+            y: y,
+            font: document.getElementById('fontFamily').value,
+            size: parseInt(document.getElementById('fontSize').value),
+            color: document.getElementById('textColor').value,
+            whiteOut: document.getElementById('whiteOut').checked
+          };
+          texts.push(obj);
+          drawTextObj(obj);
+        }
+        textarea.remove();
+      });
+
+      document.body.appendChild(textarea);
+      textarea.focus();
+    });
+
+    // تحديث عرض حجم الخط
+    document.getElementById('fontSize').addEventListener('input', function () {
+      document.getElementById('sizeLabel').textContent = this.value;
+    });
+
+    // حفظ المشروع
+    function saveProject() {
+      const project = {
+        imageSrc: img.src,
+        texts: texts
+      };
+      const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'manga-project.json';
+      a.click();
+    }
+
+    // تحميل المشروع
+    function loadProject(event) {
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const project = JSON.parse(e.target.result);
+        img.onload = function () {
+          texts = project.texts;
+          redrawAll();
+        };
+        img.src = project.imageSrc;
+      };
+      reader.readAsText(file);
+    }
+
+    // تصدير الصورة النهائية
+    function exportImage() {
+      canvas.toBlob(function (blob) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'manga-translated.png';
+        a.click();
+      });
+    }
+  </script>
+
+</body>
+</html>
